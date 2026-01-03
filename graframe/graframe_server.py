@@ -21,6 +21,13 @@ with open("graframe/lexicon.json", "r") as f:
 matcher = ConceptMatcher(lexicon)
 query = Query()
 
+def as_brick_uri(term: str) -> URIRef:
+    # Accept "Chiller", "brick:Chiller", or full URI
+    if term.startswith("http://") or term.startswith("https://"):
+        return URIRef(term)
+    if term.startswith("brick:"):
+        term = term.split(":", 1)[1]
+    return URIRef(BRICK + term)
 
 @mcp.tool()
 def expand_abbreviation(abbreviation: str, k: int) -> list[str]:
@@ -29,9 +36,7 @@ def expand_abbreviation(abbreviation: str, k: int) -> list[str]:
     Top k results are returned (increase k for ambiguous abbreviations)
     Ordered by closest to furthest
     return type:
-    {
-        label: uri
-    }
+    [ uri1, uri2, ... ]
 
     """
     closest_matches_matcher = matcher.match(abbreviation,restrict_kinds={"class"}, top_k=k, min_score=0.25)
@@ -40,7 +45,7 @@ def expand_abbreviation(abbreviation: str, k: int) -> list[str]:
         ret_dict[match.label] = ontology.compute_qname(match.uri)[2]
     if closest_matches_matcher:
         logging.info(f"closest match to {abbreviation} is {closest_matches_matcher[0].label}")
-    return ret_dict
+    return list(ret_dict.values())
 
 @mcp.tool()
 def find_close_uriref(search_string: str, k: int) -> list[str]:
@@ -49,9 +54,7 @@ def find_close_uriref(search_string: str, k: int) -> list[str]:
     Top k results are returned (increase k for ambiguous abbreviations)
     Ordered by closest to furthest
     return type:
-    {
-        label: uri
-    }
+    [ uri1, uri2, ... ]
 
     """
     closest_matches_matcher = matcher.match(search_string,restrict_kinds={"class"}, top_k=k, min_score=0.25)
@@ -60,7 +63,7 @@ def find_close_uriref(search_string: str, k: int) -> list[str]:
         ret_dict[match.label] = ontology.compute_qname(match.uri)[2]
     if closest_matches_matcher:
         logging.info(f"closest match to {search_string} is {closest_matches_matcher[0].label}")
-    return ret_dict
+    return list(ret_dict.values())
 
 @mcp.tool()
 def get_terms() -> list[str]:
@@ -163,7 +166,7 @@ def get_definition_brick(class_: str) -> str:
     return ontology.cbd(BRICK[class_]).serialize(format="turtle")
 
 @mcp.tool()
-def find_entity(class_: str, alias: str) -> str:
+def find_entity(class_: str, alias: str) -> dict:
     """Add a new entity node to the query and set it as the current pointer.
         Provide a valid Brick Class URI and an alias for the node.
         alias must be unique within the query and will be used to reference this node in future query operations.
@@ -179,13 +182,13 @@ def find_entity(class_: str, alias: str) -> str:
         
         """
     global query
-    query = query.find_entity(BRICK[class_], alias=alias)
+    query = query.find_entity(as_brick_uri(class_), alias=alias)
     return query.to_dict()
 
 @mcp.tool()
 def find_related_entities(
         _class:str, alias:str, _from:str, hops:int=3, predicates:list[str]=None, multi_hop_predicates:bool=False
-    ):
+    ) -> dict:
     """Add a related entity node, connected from an existing node.
 
         Semantics:
@@ -202,7 +205,7 @@ def find_related_entities(
         """
     global query
     query = query.find_related(
-        _class=BRICK[_class],
+        _class=as_brick_uri(_class),
         alias=alias,
         _from=_from,
         hops=hops,
@@ -232,9 +235,13 @@ def get_sparql_query() -> str:
 @mcp.resource("rdf://describe/{term}")
 def get_definition(term: str) -> str:
     """Get the definition of cyber-physical concepts like sensors from the Brick ontology."""
-    return ontology.cbd(BRICK[term]).serialize(format="turtle")
+    return ontology.cbd(as_brick_uri(term)).serialize(format="turtle")
 
-
+@mcp.tool()
+def reset_query() -> str:
+    global query
+    query = Query()
+    return "ok"
 
 
 
