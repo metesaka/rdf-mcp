@@ -2,7 +2,6 @@ from fastmcp import FastMCP
 from rdflib import Graph, URIRef, Literal, Namespace,  RDFS
 from rdflib.term import Variable
 from typing import List, Optional
-from rdf_mcp.utils.smash import smash_distance
 import sys
 import logging
 from matcher import ConceptMatcher
@@ -281,4 +280,3 @@ logging.info("mpc ready")
 
 
 
-print(find_close_uriref("oats", 5))
